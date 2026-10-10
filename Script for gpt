@@ -1,0 +1,112 @@
+script.js
+const uploadForm = document.querySelector("#upload-form");
+const imageInput = document.querySelector("#image-input");
+const preview = document.querySelector("#preview");
+const status = document.querySelector("#status");
+const eventForm = document.querySelector("#event-form");
+
+let selectedImageUrl = null;
+
+imageInput.addEventListener("change", () => {
+  const file = imageInput.files[0];
+
+  if (selectedImageUrl) {
+    URL.revokeObjectURL(selectedImageUrl);
+    selectedImageUrl = null;
+  }
+
+  preview.hidden = true;
+
+  if (!file) {
+    status.textContent = "Choose an image to get started.";
+    return;
+  }
+
+  if (!["image/png", "image/jpeg", "image/webp"].includes(file.type)) {
+    imageInput.value = "";
+    status.textContent = "Please select a PNG, JPG, or WEBP image.";
+    return;
+  }
+
+  if (file.size > 10 * 1024 * 1024) {
+    imageInput.value = "";
+    status.textContent = "Please select an image smaller than 10 MB.";
+    return;
+  }
+
+  selectedImageUrl = URL.createObjectURL(file);
+  preview.src = selectedImageUrl;
+  preview.hidden = false;
+  status.textContent =
+    "Image loaded. Automatic text scanning is not connected yet.";
+});
+
+uploadForm.addEventListener("submit", (event) => {
+  event.preventDefault();
+
+  if (!imageInput.files[0]) {
+    status.textContent = "Choose an image first.";
+    return;
+  }
+
+  status.textContent =
+    "Upload works! The OCR scanning service still needs to be connected.";
+});
+
+eventForm.addEventListener("submit", (event) => {
+  event.preventDefault();
+
+  const title = document.querySelector("#event-title").value.trim();
+  const date = document.querySelector("#event-date").value;
+  const time = document.querySelector("#event-time").value;
+  const location =
+    document.querySelector("#event-location").value.trim();
+
+  if (!title || !date || !time) {
+    status.textContent = "Enter an event name, date, and start time.";
+    return;
+  }
+
+  const start = new Date(`${date}T${time}`);
+
+  if (Number.isNaN(start.getTime())) {
+    status.textContent = "Please check the event date and time.";
+    return;
+  }
+
+  const end = new Date(start.getTime() + 60 * 60 * 1000);
+
+  function formatDate(value) {
+    return value.toISOString().replace(/[-:]/g, "").split(".")[0] + "Z";
+  }
+
+  const eventData = [
+    "BEGIN:VCALENDAR",
+    "VERSION:2.0",
+    "PRODID:-//Snap to Calendar//EN",
+    "BEGIN:VEVENT",
+    `DTSTART:${formatDate(start)}`,
+    `DTEND:${formatDate(end)}`,
+    `SUMMARY:${title.replace(/[,;\\]/g, "\\$&").replace(/\n/g, "\\n")}`,
+    ...(location ? [
+      `LOCATION:${location.replace(/[,;\\]/g, "\\$&").replace(/\n/g, "\\n")}`
+    ] : []),
+    "END:VEVENT",
+    "END:VCALENDAR"
+  ].join("\r\n");
+
+  const blob = new Blob([eventData], {
+    type: "text/calendar;charset=utf-8"
+  });
+
+  const downloadUrl = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.href = downloadUrl;
+  link.download = "snap-to-calendar-event.ics";
+  link.click();
+
+  setTimeout(() => URL.revokeObjectURL(downloadUrl), 1000);
+
+  status.textContent =
+    "Calendar file created. Open it with a compatible calendar app to import the event.";
+});
